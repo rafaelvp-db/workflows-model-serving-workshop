@@ -52,10 +52,11 @@ from databricks.data_monitoring import analysis
 username = dbutils.notebook.entry_point.getDbutils().notebook().getContext().tags().apply("user")
 username_prefix = username.split("@")[0].replace(".","_")
 
-dbutils.widgets.text("table_name",f"{username_prefix}_airbnb_bookings_model", "Table to Monitor")
+dbutils.widgets.text("table_name", f"{username_prefix}_airbnb_bookings_model", "Table to Monitor")
 dbutils.widgets.text("baseline_table_name",f"{username_prefix}_airbnb_bookings_baseline", "Baseline table (OPTIONAL)")
 dbutils.widgets.text("monitor_db", f"{username_prefix}_monitor_db", "Output Database/Schema to use (OPTIONAL)")
 dbutils.widgets.text("monitor_catalog", "uc_demos_rvp", "Unity Catalog to use (Required)")
+dbutils.widgets.text("problem_type", "regression", "Type of Problem (regression/classification)")
 
 # COMMAND ----------
 
@@ -109,6 +110,7 @@ display(spark.read.table(f"{CATALOG}.{QUICKSTART_MONITOR_DB}.{BASELINE_TABLE}"))
 # COMMAND ----------
 
 from sklearn.model_selection import train_test_split
+import numpy as np
 
 df = spark.read.table(f"{CATALOG}.{QUICKSTART_MONITOR_DB}.{BASELINE_TABLE}").toPandas()
 
@@ -124,10 +126,14 @@ cat_vars = [
 
 df = df.drop(cat_vars, axis = 1)
 
+df_val = df.sample(frac = 0.10)
+
+df_train_test = df.iloc[[index for index in df.index if not np.isin(index, df_val.index)]]
+
 X_train, X_test, y_train, y_test = train_test_split(
-  df.drop("price", axis=1),
-  df.price.values,
-  test_size = 0.2
+  df_train_test.drop("price", axis=1),
+  df_train_test.price.values,
+  test_size = 0.3
 )
 
 # COMMAND ----------
@@ -157,10 +163,6 @@ with mlflow.start_run() as run:
 
 # COMMAND ----------
 
-
-
-# COMMAND ----------
-
 # MAGIC %md 
 # MAGIC ## 2. Predict (batch inference) on our incoming data test data 
 # MAGIC
@@ -175,27 +177,42 @@ from mlflow.tracking import MlflowClient
 
 client = MlflowClient()
 
+model_name = "airbnb_lgbm"
 model_stage = "None"
-version = client.get_latest_versions(name="airbnb_lgbm", stages=[model_stage])[0].version
-new_loaded_model = mlflow.pyfunc.spark_udf(spark, model_uri=f"models:/airbnb_lgbm/{version}", result_type="double")
+version = client.get_latest_versions(name=model_name, stages=[model_stage])[0].version
+new_loaded_model = mlflow.pyfunc.spark_udf(
+  spark,
+  model_uri=f"models:/{model_name}/{version}",
+  result_type="double"
+)
 
 # COMMAND ----------
 
 import pyspark.sql.functions as F
+
+TIMESTAMP_COL = "date_time"
+features_list = X_test.columns
+
 # Add/Simulate timestamp(s) if they don't exist
 timestamp = (datetime.now()).timestamp()
 testDF = spark.createDataFrame(X_test)
-predDF = testDF.withColumn(TIMESTAMP_COL, F.lit(timestamp).cast("timestamp")) \
-                 .withColumn("prediction", new_loaded_model(*features_list))
+predDF = testDF.withColumn(
+  TIMESTAMP_COL,
+  F.lit(timestamp).cast("timestamp")
+  ).withColumn("prediction", new_loaded_model(*features_list))
+
 display(predDF)
 
 # COMMAND ----------
 
-predDF.withColumn(MODEL_VERSION_COL, F.lit(version)) \
-       .write.format("delta").mode("overwrite") \
-       .option("overwriteSchema",True) \
-       .option("delta.enableChangeDataFeed", "true") \
-       .saveAsTable(f"{CATALOG}.{QUICKSTART_MONITOR_DB}.{TABLE_NAME}")
+MODEL_VERSION_COL = "model_version"
+
+predDF.withColumn(
+  MODEL_VERSION_COL, F.lit(version)) \
+    .write.format("delta").mode("overwrite") \
+    .option("overwriteSchema",True) \
+    .option("delta.enableChangeDataFeed", "true") \
+    .saveAsTable(f"{CATALOG}.{QUICKSTART_MONITOR_DB}.{TABLE_NAME}")
 
 # COMMAND ----------
 
@@ -231,10 +248,10 @@ predDF.withColumn(MODEL_VERSION_COL, F.lit(version)) \
 
 # COMMAND ----------
 
-PROBLEM_TYPE = dbutils.widgets.get("problem_type")  # ML problem type, one of "classification"/"regression"
+problem_type = dbutils.widgets.get("problem_type")  # ML problem type, one of "classification"/"regression"
 
 # Validate that all required inputs have been provided
-if None in [MODEL_NAME, PROBLEM_TYPE]:
+if None in [model_name, PROBLEM_TYPE]:
     raise Exception("Please fill in the required information for model name and problem type.")
 
 # Monitoring configuration parameters, see create_or_update_monitor() documentation for more details.
@@ -243,7 +260,7 @@ GRANULARITIES = ["1 day"]                       # Window sizes to analyze data o
 # Optional parameters to control monitoring analysis.
 LABEL_COL = "price"                             # Name of columns holding labels
 SLICING_EXPRS = ["cancellation_policy", "accommodates > 2"]   # Expressions to slice data with
-LINKED_ENTITIES = [f"models:/{MODEL_NAME}"]
+LINKED_ENTITIES = [f"models:/{model_name}"]
 # DATA_MONITORING_DIR = f"/Users/{username}/DataMonitoringTEST"
 
 # Parameters to control processed tables.
@@ -255,25 +272,25 @@ CUSTOM_METRICS = None # for now
 
 # COMMAND ----------
 
-
+spark.sql("select * from rafael_pierre_airbnb_bookings_model").printSchema()
 
 # COMMAND ----------
 
 print(f"Creating monitor for {TABLE_NAME}")
 
 dm_info = dm.create_or_update_monitor(
-    table_name='ap.default.anastasia_prokaieva_airbnb_pricer_ml_inference', 
+    table_name=f"{CATALOG}.{QUICKSTART_MONITOR_DB}.{BASELINE_TABLE}", 
     granularities=GRANULARITIES,
     analysis_type=analysis.InferenceLog(
-        timestamp_col="scoring_timestamp",
+        timestamp_col="date_time",
         example_id_col="id", # To drop from analysis
-        model_version_col="Model_Version", # Version number
+        model_version_col="model_version", # Version number
         prediction_col="prediction",
         label_col="price",
-        problem_type="regression",
+        problem_type=problem_type,
     ),
     output_schema_name=QUICKSTART_MONITOR_DB,
-    baseline_table_name=BASELINE_TABLE+"_INF",
+    baseline_table_name=BASELINE_TABLE,
     slicing_exprs=SLICING_EXPRS,
     linked_entities=LINKED_ENTITIES
 )
