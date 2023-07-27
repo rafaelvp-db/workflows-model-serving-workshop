@@ -399,7 +399,3 @@ dm.update_monitor(table_name=f"{CATALOG}.{QUICKSTART_MONITOR_DB}.{TABLE_NAME}",
 
 dm.refresh_metrics(table_name=f"{CATALOG}.{QUICKSTART_MONITOR_DB}.{TABLE_NAME}",
                    backfill=True)
-
-# COMMAND ----------
-
-
