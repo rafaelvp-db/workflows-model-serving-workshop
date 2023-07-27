@@ -85,7 +85,7 @@
 
 # COMMAND ----------
 
-# MAGIC %run ../_resources/00-setup $reset_all_data=false
+# MAGIC %run ./_resources/00-setup $reset_all_data=false
 
 # COMMAND ----------
 
@@ -126,6 +126,9 @@
 # COMMAND ----------
 
 # DBTITLE 1,Run analysis using your usual python plot libraries
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+
 df = spark.sql('select type, is_fraud, count(1) as count from dbdemos.fsi_fraud_detection.gold_transactions_ml group by type, is_fraud').toPandas()
 
 fig = make_subplots(rows=1, cols=2, specs=[[{'type':'domain'}, {'type':'domain'}]])
@@ -220,14 +223,37 @@ display(features)
 
 # COMMAND ----------
 
-# DBTITLE 1,Starting AutoML run usingDtabricks API
-#This calls databricks.automl.classify(...) under the hood or . See companion notebook for more detail.
-display_automl_fraud_link(dataset = fs.read_table(f'dbdemos.fsi_fraud_detection.transactions_features'), model_name = "dbdemos_fsi_fraud", force_refresh = False)
+# MAGIC %sql
+# MAGIC
+# MAGIC select count(1) from dbdemos.fsi_fraud_detection.transactions_features
+
+# COMMAND ----------
+
+# DBTITLE 1,Starting AutoML run using Databricks API
+from databricks import automl
+import time
+
+automl_summary = automl.classify(
+  dataset = fs.read_table(f'dbdemos.fsi_fraud_detection.transactions_features').sample(fraction = 0.01),
+  experiment_name = f"demo_fraud_rvp_{time.time_ns()}",
+  timeout_minutes=10,
+  target_col = "is_fraud"
+)
+
+# COMMAND ----------
+
+# DBTITLE 1,Register Best Model on MLflow Model Registry
+import mlflow
+
+mlflow.register_model(
+  model_uri = f"runs:/{automl_summary.best_trial.mlflow_run_id}/model",
+  name = "demo_fraud_rvp"
+)
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC AutoML saved our best model in the MLFlow registry. [Open the dbdemos_fsi fraud model](#mlflow/models/dbdemos_fsi_fraud) to explore its artifact and analyze the parameters used, including traceability to the notebook used for its creation.
+# MAGIC AutoML saved our best model in the MLFlow registry. [Open the dbdemos_fsi fraud model](#mlflow/models/demo_fraud_rvp) to explore its artifact and analyze the parameters used, including traceability to the notebook used for its creation.
 # MAGIC
 # MAGIC If we're ready, we can move this model into Production stage in a click, or using the API.
 

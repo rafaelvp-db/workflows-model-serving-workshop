@@ -5,19 +5,19 @@ dbutils.widgets.dropdown("shap_enabled", "true", ["true", "false"], "Compute sha
 
 # MAGIC %md-sandbox
 # MAGIC # Use the best Auto-ML generated notebook to bootstrap our ML Project
-# MAGIC 
+# MAGIC
 # MAGIC <img src="https://raw.githubusercontent.com/QuentinAmbard/databricks-demo/main/retail/resources/images/lakehouse-retail/lakehouse-retail-churn-ml-experiment.png" style="float: right" width="600px">
-# MAGIC 
+# MAGIC
 # MAGIC Databricks Autt-ML tries many models and generate notebooks containing the code used to build the model.
-# MAGIC 
+# MAGIC
 # MAGIC Here, we selected the notebook from best run from the Auto ML experiment.
-# MAGIC 
+# MAGIC
 # MAGIC All the code below has been automatically generated. As Data Scientist, we can tune it based on our business knowledge, or use the model generated as it is.
-# MAGIC 
+# MAGIC
 # MAGIC This saves Datascientists hours of developement and allow team to quickly bootstrap and validate new project.
-# MAGIC 
+# MAGIC
 # MAGIC **All the cells below have been automatically generated.**
-# MAGIC 
+# MAGIC
 # MAGIC <!-- Collect usage data (view). Remove it to disable collection. View README for more details.  -->
 # MAGIC <img width="1px" src="https://www.google-analytics.com/collect?v=1&gtm=GTM-NKQ8TT7&tid=UA-163989034-1&cid=555&aip=1&t=event&ec=field_demos&ea=display&dp=%2F42_field_demos%2Ffsi%2Flakehouse_fsi_fraud%2Fml-generated&dt=LAKEHOUSE_FSI_FRAUD">
 
@@ -29,7 +29,7 @@ dbutils.widgets.dropdown("shap_enabled", "true", ["true", "false"], "Compute sha
 
 # MAGIC %md
 # MAGIC # RandomForest Classifier training
-# MAGIC 
+# MAGIC
 # MAGIC - This is an auto-generated notebook.
 # MAGIC - To reproduce these results, attach this notebook to a cluster with runtime version **12.1.x-cpu-ml-scala2.12**, and rerun it.
 # MAGIC - Compare trials in the [MLflow experiment](#mlflow/experiments/3254325001193021).
@@ -122,7 +122,7 @@ bool_transformers = [("boolean", bool_pipeline, ["isUnauthorizedOverdraft"])]
 
 # MAGIC %md
 # MAGIC ### Numerical columns
-# MAGIC 
+# MAGIC
 # MAGIC Missing values for numerical columns are imputed with mean by default.
 
 # COMMAND ----------
@@ -187,7 +187,7 @@ preprocessor = ColumnTransformer(transformers, remainder="passthrough", sparse_t
 # MAGIC - Train (60% of the dataset used to train the model)
 # MAGIC - Validation (20% of the dataset used to tune the hyperparameters of the model)
 # MAGIC - Test (20% of the dataset used to report the true performance of the model on an unseen dataset)
-# MAGIC 
+# MAGIC
 # MAGIC `_automl_split_col_624d` contains the information of which set a given row belongs to.
 # MAGIC We use this column to split the dataset into the above 3 sets. 
 # MAGIC The column should not be used for training so it is dropped after split is done.
@@ -325,15 +325,15 @@ def objective(params):
 # MAGIC modified to widen the search space. For example, when training a decision tree classifier, to allow
 # MAGIC the maximum tree depth to be either 2 or 3, set the key of 'max_depth' to
 # MAGIC `hp.choice('max_depth', [2, 3])`. Be sure to also increase `max_evals` in the `fmin` call below.
-# MAGIC 
+# MAGIC
 # MAGIC See https://docs.databricks.com/applications/machine-learning/automl-hyperparam-tuning/index.html
 # MAGIC for more information on hyperparameter tuning as well as
 # MAGIC http://hyperopt.github.io/hyperopt/getting-started/search_spaces/ for documentation on supported
 # MAGIC search expressions.
-# MAGIC 
+# MAGIC
 # MAGIC For documentation on parameters used by the model in use, please see:
 # MAGIC https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html
-# MAGIC 
+# MAGIC
 # MAGIC NOTE: The above URL points to a stable version of the documentation corresponding to the last
 # MAGIC released version of the package. The documentation may differ slightly for the package version
 # MAGIC used by this notebook.
@@ -361,10 +361,10 @@ space = {
 # MAGIC from hyperopt import SparkTrials
 # MAGIC trials = SparkTrials()
 # MAGIC ```
-# MAGIC 
+# MAGIC
 # MAGIC NOTE: While `Trials` starts an MLFlow run for each set of hyperparameters, `SparkTrials` only starts
 # MAGIC one top-level run; it will start a subrun for each set of hyperparameters.
-# MAGIC 
+# MAGIC
 # MAGIC See http://hyperopt.github.io/hyperopt/scaleout/spark/ for more info.
 
 # COMMAND ----------
@@ -392,7 +392,7 @@ model
 
 # MAGIC %md
 # MAGIC ## Feature importance
-# MAGIC 
+# MAGIC
 # MAGIC SHAP is a game-theoretic approach to explain machine learning models, providing a summary plot
 # MAGIC of the relationship between features and model output. Features are ranked in descending order of
 # MAGIC importance, and impact/color describe the correlation between the feature and the target variable.
@@ -404,7 +404,7 @@ model
 # MAGIC - SHAP cannot explain models using data with nulls; if your dataset has any, both the background data and
 # MAGIC   examples to explain will be imputed using the mode (most frequent values). This affects the computed
 # MAGIC   SHAP values, as the imputed samples may not match the actual data distribution.
-# MAGIC 
+# MAGIC
 # MAGIC For more information on how to read Shapley values, see the [SHAP documentation](https://shap.readthedocs.io/en/latest/example_notebooks/overviews/An%20introduction%20to%20explainable%20AI%20with%20Shapley%20values.html).
 
 # COMMAND ----------
@@ -443,9 +443,9 @@ displayHTML(f"""<a href="#mlflow/experiments/{ run['experiment_id'] }/runs/{ mlf
 
 # MAGIC %md
 # MAGIC ## Confusion matrix, ROC and Precision-Recall curves for validation data
-# MAGIC 
+# MAGIC
 # MAGIC We show the confusion matrix, ROC and Precision-Recall curves of the model on the validation data.
-# MAGIC 
+# MAGIC
 # MAGIC For the plots evaluated on the training and the test data, check the artifacts on the MLflow run page.
 
 # COMMAND ----------
@@ -500,9 +500,9 @@ display(Image(filename=eval_pr_curve_path))
 # MAGIC %md 
 # MAGIC ### MLFlow tracked all our model information and the model is ready to be deployed in our registry!
 # MAGIC We can do that manually:
-# MAGIC 
+# MAGIC
 # MAGIC <img src="https://github.com/QuentinAmbard/databricks-demo/raw/main/retail-cdc-forecast/resources/images/mlflow_artifact.gif" alt="MLFlow artifacts"/>
-# MAGIC 
+# MAGIC
 # MAGIC or using MLFlow APIs directly:
 
 # COMMAND ----------
@@ -525,9 +525,9 @@ client.transition_model_version_stage(model_name, model_registered.version, stag
 
 # MAGIC %md 
 # MAGIC ## Next: deploying our model for Real Time fraud detection serving 
-# MAGIC 
+# MAGIC
 # MAGIC Now that our model has been created with Databricks AutoML, we can start a Model Endpoint to serve low-latencies fraud detection.
-# MAGIC 
+# MAGIC
 # MAGIC We'll be able to rate the Fraud likelihood in ms to reduce fraud in real-time.
-# MAGIC 
+# MAGIC
 # MAGIC Open the [04.3-Model-serving-realtime-inference-fraud]($./04.3-Model-serving-realtime-inference-fraud) to deploy our model.
