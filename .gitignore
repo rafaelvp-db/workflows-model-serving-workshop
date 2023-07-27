@@ -1,0 +1,5 @@
+.venv
+.whl
+.egg
+__pycache__
+.env
